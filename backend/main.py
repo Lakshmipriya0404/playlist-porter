@@ -50,6 +50,22 @@ def get_playlists():
 
     return playlists_html
 
+@app.route("/get_playlist_tracks/<playlist_id>")
+def get_playlist_tracks(playlist_id):
+    if not sp_oauth.validate_token(cache_handler.get_cached_token()):
+        auth_url = sp_oauth.get_authorize_url()
+        return redirect(auth_url)
+
+    # Retrieve tracks from the playlist
+    tracks = sp.playlist_tracks(playlist_id)
+
+    # Extract track information
+    track_info = [(track['track']['name'], track['track']['artists'][0]['name']) for track in tracks['items']]
+    tracks_html = '<br>'.join(f'{name} by {artist}' for name, artist in track_info)
+
+    return tracks_html
+
+
 @app.route('/logout')
 def logout():
     session.clear
