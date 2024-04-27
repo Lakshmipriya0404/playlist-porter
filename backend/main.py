@@ -1,12 +1,14 @@
 import os
 
-from flask import Flask, session, redirect, url_for, request
+from flask import Flask, jsonify, session, redirect, url_for, request
+from flask_cors import CORS
 
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import FlaskSessionCacheHandler
 
 app = Flask(__name__)
+CORS(app)
 app.config["SECRET_KEY"] = os.urandom(64)
 
 client_id  = "1f117b3fc0d34eabbf29b976c4725b4b"
@@ -26,12 +28,17 @@ sp_oauth = SpotifyOAuth(
 
 sp = Spotify(auth_manager=sp_oauth)
 
-@app.route("/")
-def home():
-    if not sp_oauth.validate_token(cache_handler.get_cached_token()):
-        auth_url = sp_oauth.get_authorize_url()
-        return redirect(auth_url)
-    return redirect(url_for('get_playlists'))
+@app.route("/authorize_spotify")
+def authorize_spotify():
+    auth_url = sp_oauth.get_authorize_url()
+    return jsonify({"auth_url": auth_url})
+
+@app.route("/spotify_callback")
+def spotify_callback():
+    code = request.args.get('code')
+    token_info = sp_oauth.get_access_token(code)
+    # Handle token_info (e.g., store access token)
+    return "Authorization Successful"
 
 @app.route("/callback")
 def callback():
