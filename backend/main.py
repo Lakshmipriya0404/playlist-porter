@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask, jsonify, session, redirect, url_for, request
+from flask import Flask, json, jsonify, session, redirect, url_for, request
 from flask_cors import CORS
 
 from spotipy import Spotify
@@ -33,17 +33,20 @@ def authorize_spotify():
     auth_url = sp_oauth.get_authorize_url()
     return jsonify({"auth_url": auth_url})
 
-@app.route("/spotify_callback")
-def spotify_callback():
-    code = request.args.get('code')
-    token_info = sp_oauth.get_access_token(code)
-    # Handle token_info (e.g., store access token)
-    return "Authorization Successful"
-
 @app.route("/callback")
 def callback():
-    sp_oauth.get_access_token(request.args['code'])
-    return redirect(url_for('get_playlists'))
+    code = request.args.get('code')
+    token_info = sp_oauth.get_access_token(code)
+    token_info_str = json.dumps(token_info)
+    origin = request.headers.get('Origin', '*')
+    close_window_script = f"""
+    <script>
+    window.opener.postMessage({token_info_str}, "{origin}");
+    window.close();
+    </script>
+    """
+
+    return close_window_script
 
 @app.route("/get_playlists")
 def get_playlists():

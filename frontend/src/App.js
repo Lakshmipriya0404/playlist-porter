@@ -6,7 +6,7 @@ import { theme } from "./theme";
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <Box>
+      <Box bgcolor="primary.main">
         <Stack direction="column" justifyContent="center">
           <Navbar />
           <Main />
