@@ -23,7 +23,7 @@ sp_oauth = SpotifyOAuth(
     redirect_uri=redirect_uri,
     scope=scope,
     cache_handler=cache_handler,
-    show_dialog=True
+    show_dialog=True #should be false
 )
 
 sp = Spotify(auth_manager=sp_oauth)
@@ -39,6 +39,8 @@ def callback():
     token_info = sp_oauth.get_access_token(code)
     token_info_str = json.dumps(token_info)
     origin = request.headers.get('Origin', '*')
+    # Store the token_info in the session
+    session['spotify_token'] = token_info
     close_window_script = f"""
     <script>
     window.opener.postMessage({token_info_str}, "{origin}");
@@ -50,6 +52,8 @@ def callback():
 
 @app.route("/get_playlists")
 def get_playlists():
+    cached_token = cache_handler.get_cached_token()
+    print("Cached Token:", cached_token)  # Check the cached token
     if not sp_oauth.validate_token(cache_handler.get_cached_token()):
         auth_url = sp_oauth.get_authorize_url()
         return redirect(auth_url)
@@ -57,6 +61,7 @@ def get_playlists():
     playlists = sp.current_user_playlists()
     playlists_info = [(pl['name'], pl['external_urls']['spotify']) for pl in playlists['items']]
     playlists_html = '<br>'.join(f'{name}: {url}' for name, url in playlists_info)
+    print(playlists_info)
 
     return playlists_html
 
