@@ -13,15 +13,14 @@ const Main = () => {
   const [authorized, setAuthorized] = useState(false);
   const [selectedPlaylistId, setSelectedPlaylistId] = useState(null);
 
-  const handleGetPlaylistsClick = async () => {
+  const handleGetPlaylistsTracks = async () => {
     try {
       const token = localStorage.getItem("spotifyAuthToken");
-      const response = await fetch(
-        `http://localhost:5000/playlists?token=${token}`
+      const tracksResponse = await fetch(
+        `http://localhost:5000/get-playlist-tracks?token=${token}&pid=${selectedPlaylistId}`
       );
-      const data = await response.json();
-      console.log(data.items); // Display playlists data in console
-      setPlaylists(data.items);
+      const tracksData = await tracksResponse.json();
+      console.log(tracksData); // Display playlists data in console
     } catch (error) {
       console.error("Error:", error);
     }
@@ -29,15 +28,19 @@ const Main = () => {
 
   const handleAuthClick = async () => {
     try {
-      const response = await fetch("http://localhost:5000/authorize");
+      const response = await fetch("http://localhost:5000/authorize-spotify");
       const data = await response.json();
-      const authWindow = window.open(data.auth_url, "", "width=450,height=300");
-      window.addEventListener("message", (event) => {
+      window.open(data.auth_url, "", "width=450,height=300");
+      window.addEventListener("message", async (event) => {
         const token = event.data;
-        console.log(token);
         localStorage.setItem("spotifyAuthToken", token);
         setAuthorized(true);
-        authWindow.close();
+        const playlist_response = await fetch(
+          `http://localhost:5000/get-spotify-playlists?token=${token}`
+        );
+        const playlist_data = await playlist_response.json();
+        console.log(playlist_data.items); // Display playlists data in console
+        setPlaylists(playlist_data.items);
       });
     } catch (error) {
       console.error("Error:", error);
@@ -46,6 +49,7 @@ const Main = () => {
 
   const handlePlaylistClick = (playlistId) => {
     setSelectedPlaylistId(playlistId);
+    console.log(playlistId);
   };
 
   return (
@@ -71,9 +75,9 @@ const Main = () => {
             variant="contained"
             size="large"
             sx={{ color: "white", bgcolor: "secondary.main", m: 2 }}
-            onClick={handleGetPlaylistsClick}
+            onClick={handleGetPlaylistsTracks}
           >
-            2. Get Playlists
+            2. Get Playlists tracks
           </Button>
         )}
         {playlists && playlists.length > 0 && (
