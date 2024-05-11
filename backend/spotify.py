@@ -3,7 +3,7 @@ import os
 import urllib.parse
 import requests
 
-from flask import Flask, json, redirect, request, jsonify, session
+from flask import Flask, json, redirect, request, jsonify, session, url_for
 from flask_cors import CORS
 
 import google.oauth2.credentials
@@ -25,8 +25,8 @@ TOKEN_URL = 'https://accounts.spotify.com/api/token'
 API_BASE_URL = 'https://api.spotify.com/v1/'
 
 @app.route('/authorize-spotify')
-def authorize():
-    scope = 'user-read-private user-read-email'
+def authorize_spotify():
+    scope = 'user-read-private user-read-email playlist-read-private'
 
     params = {
         'client_id': CLIENT_ID,
@@ -81,9 +81,44 @@ def get_playlists():
         'Authorization': f"Bearer {token}"
     }
     response = requests.get(API_BASE_URL + 'me/playlists', headers=headers)
-    playlists = response.json()
-    print(playlists)    
+    playlists = response.json()   
     return jsonify(playlists)
+
+@app.route("/get-playlist-tracks")
+def get_playlist_tracks():
+    # Retrieve tracks from the playlist
+    playlist_id = request.args.get('pid')
+    # playlist_id = '2eZLIe7z4r2DkfzltYiK1n'
+    token = request.args.get('token')
+    headers = {
+        'Authorization': f"Bearer {token}"
+    }
+    response = requests.get(API_BASE_URL + f"playlists/{playlist_id}/tracks", headers=headers)
+    tracks_data = response.json()
+    #print(tracks_data)
+    # Extract track information
+    track_names = [track['track']['name'] for track in tracks_data['items']]
+    #print("tracks....:",track_names)
+        # Now, for each track, search for the corresponding video ID on YouTube
+    youtube_video_ids = []
+    for track_name in track_names:
+        # You can customize the YouTube search query based on the track name or other criteria
+        youtube_search_query = f"{track_name}"
+        youtube_response = requests.get(
+            f"https://www.googleapis.com/youtube/v3/search?q={youtube_search_query}&key={YOUTUBE_API_KEY}"
+        )
+        youtube_data = youtube_response.json()
+        print(youtube_data)
+
+        # Extract video IDs from the YouTube search results
+        video_ids = [item['id']['videoId'] for item in youtube_data['items'] if item['id']['kind'] == 'youtube#video']
+        if video_ids:
+            # Append the first video ID to the list
+            print("video id")
+            print(video_ids[0])
+            youtube_video_ids.append(video_ids[0])
+
+    return jsonify(youtube_video_ids)
 
 @app.route('/refresh-token')
 def refresh_token():
@@ -111,18 +146,14 @@ CLIENT_SECRETS_FILE = "client_secret.json"
 SCOPES = ['https://www.googleapis.com/auth/youtube','https://www.googleapis.com/auth/youtube.force-ssl']
 API_SERVICE_NAME = 'youtube'
 API_VERSION = 'v3'
-os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-
-# @app.route("/")
-# def home():
-#     if 'credentials' not in Flask.session:
-#         return Flask.redirect('authorize')
-#     return Flask.redirect('/create_playlist')    
+os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  
+YOUTUBE_API_KEY = 'AIzaSyDI7r5P-LVdgdVEIuYfyNsFy_nglaNC8ZE'
 
 @app.route("/create_playlist")
 def create_playlist():
-    if 'credentials' not in Flask.session:
-        return Flask.redirect('authorize')
+    if 'credentials' not in session:
+        print("no credentials")
+        return redirect('authorize_utube')
     
     credentials = google.oauth2.credentials.Credentials(**Flask.session['credentials'])
     youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
@@ -159,41 +190,46 @@ def create_playlist():
     """.format(playlist_id)
 
     
-@app.route('/authorize_youtube')
-def authorize():
+@app.route('/authorize_utube')
+def authorize_utube():
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
     CLIENT_SECRETS_FILE,
     scopes=SCOPES)
-    flow.redirect_uri = Flask.url_for('oauth2callback', _external=True)
+    flow.redirect_uri = url_for('oauth2callback', _external=True)
 
     authorization_url, state = flow.authorization_url(access_type='offline',include_granted_scopes='true')
 
-    Flask.session['state'] = state
-
-    return Flask.redirect(authorization_url)
+    # return Flask.redirect(authorization_url)
+    return jsonify({"auth_url": authorization_url})
 
 @app.route('/oauth2callback')
 def oauth2callback():
 
-  state = Flask.session['state']
+    flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
+        CLIENT_SECRETS_FILE, scopes=SCOPES)
+    flow.redirect_uri = url_for('oauth2callback', _external=True)
 
-  flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-      CLIENT_SECRETS_FILE, scopes=SCOPES, state=state)
-  flow.redirect_uri = Flask.url_for('oauth2callback', _external=True)
+    authorization_response = request.url
+    flow.fetch_token(authorization_response=authorization_response)
 
-  authorization_response = Flask.request.url
-  flow.fetch_token(authorization_response=authorization_response)
+    # ACTION ITEM: In a production app, you likely want to save these
+    #              credentials in a persistent database instead.
+    credentials = flow.credentials
+    # session['credentials'] = credentials_to_dict(credentials)
 
-  # ACTION ITEM: In a production app, you likely want to save these
-  #              credentials in a persistent database instead.
-  credentials = flow.credentials
-  Flask.session['credentials'] = credentials_to_dict(credentials)
-
-  return Flask.redirect(Flask.url_for('home'))
+    origin = request.headers.get('Origin', '*')
+    close_window_script = f"""
+    <script>
+    window.opener.postMessage("{credentials_to_dict(credentials)}", "{origin}");
+    window.close();
+    </script>
+    """
+    # return Flask.redirect(Flask.url_for('home'))
+    return close_window_script
 
 @app.route("/insert_videos/<playlist_id>", methods=['POST'])
 def insert_videos(playlist_id):
-    if 'credentials' not in Flask.session:
+    if 'credentials' not in session:
         return Flask.redirect('authorize')
 
     # Get the list of video IDs from the request JSON
@@ -229,8 +265,8 @@ def insert_videos(playlist_id):
 @app.route('/logout')
 def logout():
     if 'credentials' in Flask.session:
-        del Flask.session['credentials']
-    return Flask.redirect(Flask.url_for('home'))
+        del session['credentials']
+    return redirect(Flask.url_for('home'))
 
 
 def credentials_to_dict(credentials):
