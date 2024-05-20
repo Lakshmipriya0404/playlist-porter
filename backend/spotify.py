@@ -2,6 +2,7 @@ from datetime import datetime
 import os
 import urllib.parse
 import requests
+import json
 
 from flask import Flask, json, redirect, request, jsonify, session, url_for
 from flask_cors import CORS
@@ -75,8 +76,6 @@ def callback():
 @app.route('/get-spotify-playlists')
 def get_playlists():
     token = request.args.get('token')
-    # if datetime.now().timestamp() > session['expires_at']:
-    #     return redirect('/refresh-token')    
     headers = {
         'Authorization': f"Bearer {token}"
     }
@@ -95,30 +94,9 @@ def get_playlist_tracks():
     }
     response = requests.get(API_BASE_URL + f"playlists/{playlist_id}/tracks", headers=headers)
     tracks_data = response.json()
-    #print(tracks_data)
-    # Extract track information
     track_names = [track['track']['name'] for track in tracks_data['items']]
-    #print("tracks....:",track_names)
-        # Now, for each track, search for the corresponding video ID on YouTube
-    youtube_video_ids = []
-    for track_name in track_names:
-        # You can customize the YouTube search query based on the track name or other criteria
-        youtube_search_query = f"{track_name}"
-        youtube_response = requests.get(
-            f"https://www.googleapis.com/youtube/v3/search?q={youtube_search_query}&key={YOUTUBE_API_KEY}"
-        )
-        youtube_data = youtube_response.json()
-        print(youtube_data)
 
-        # Extract video IDs from the YouTube search results
-        video_ids = [item['id']['videoId'] for item in youtube_data['items'] if item['id']['kind'] == 'youtube#video']
-        if video_ids:
-            # Append the first video ID to the list
-            print("video id")
-            print(video_ids[0])
-            youtube_video_ids.append(video_ids[0])
-
-    return jsonify(youtube_video_ids)
+    return jsonify(track_names)
 
 @app.route('/refresh-token')
 def refresh_token():
@@ -149,22 +127,24 @@ API_VERSION = 'v3'
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  
 YOUTUBE_API_KEY = 'AIzaSyDI7r5P-LVdgdVEIuYfyNsFy_nglaNC8ZE'
 
-@app.route("/create_playlist")
+@app.route("/create_playlist", methods=['POST'])
 def create_playlist():
-    if 'credentials' not in session:
-        print("no credentials")
-        return redirect('authorize_utube')
-    
-    credentials = google.oauth2.credentials.Credentials(**Flask.session['credentials'])
+    data = request.json
+    credentials_str = data.get('credentials')
+    track_names = data.get('tracksData')
+    credentials_str = credentials_str.replace("'", '"').replace("None","null")
+    credentials_json = json.loads(credentials_str)
+    credentials = google.oauth2.credentials.Credentials(**credentials_json)
+
     youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
-    # Define the parameters for the playlist resource
+
     request_body = {
         'snippet': {
             'title': 'Playlist Porter',
             'description': 'Your Playlist Description'
         },
         'status': {
-            'privacyStatus': 'public'  # Set the privacy status of the playlist
+            'privacyStatus': 'public' 
         }
     }
 
@@ -173,21 +153,25 @@ def create_playlist():
        body = request_body,
     ).execute()
 
-    # Extract playlist ID from the response
     playlist_id = playlist['id']
 
+    youtube_video_ids = []
+    print(track_names)
+    for track_name in track_names:
+        youtube_search_query = f"{track_name}"
+        youtube_response = requests.get(
+            f"https://www.googleapis.com/youtube/v3/search?q={youtube_search_query}&key={YOUTUBE_API_KEY}"
+        )
+        youtube_data = youtube_response.json()
 
-    Flask.session['credentials'] = credentials_to_dict(credentials)
-    #return flask.redirect(flask.url_for('insert_videos', playlist_id=playlist_id, _method='POST'), code=307)
-        # Redirect to the insert_videos route with the playlist_id
-    return """
-    <html>
-    <body onload="document.getElementById('redirectForm').submit()">
-        <form id="redirectForm" action="/insert_videos/{}" method="post">
-        </form>
-    </body>
-    </html>
-    """.format(playlist_id)
+        video_ids = [item['id']['videoId'] for item in youtube_data['items'] if item['id']['kind'] == 'youtube#video']
+        if video_ids:
+            youtube_video_ids.append(video_ids[0])
+
+    link = insert_videos(playlist_id, credentials,youtube_video_ids)
+    print("LINK: ")
+    print(link)
+    return link
 
     
 @app.route('/authorize_utube')
@@ -199,7 +183,6 @@ def authorize_utube():
 
     authorization_url, state = flow.authorization_url(access_type='offline',include_granted_scopes='true')
 
-    # return Flask.redirect(authorization_url)
     return jsonify({"auth_url": authorization_url})
 
 @app.route('/oauth2callback')
@@ -212,10 +195,7 @@ def oauth2callback():
     authorization_response = request.url
     flow.fetch_token(authorization_response=authorization_response)
 
-    # ACTION ITEM: In a production app, you likely want to save these
-    #              credentials in a persistent database instead.
     credentials = flow.credentials
-    # session['credentials'] = credentials_to_dict(credentials)
 
     origin = request.headers.get('Origin', '*')
     close_window_script = f"""
@@ -224,25 +204,16 @@ def oauth2callback():
     window.close();
     </script>
     """
-    # return Flask.redirect(Flask.url_for('home'))
     return close_window_script
 
-@app.route("/insert_videos/<playlist_id>", methods=['POST'])
-def insert_videos(playlist_id):
-    if 'credentials' not in session:
-        return Flask.redirect('authorize')
 
-    # Get the list of video IDs from the request JSON
-    #video_ids = flask.request.json.get('video_ids')
-    video_ids = ['j6IFiUbQLl4']
+def insert_videos(playlist_id, credentials, video_ids):
 
     if not video_ids:
         return "No video IDs provided."
 
-    credentials = google.oauth2.credentials.Credentials(**Flask.session['credentials'])
     youtube = googleapiclient.discovery.build(API_SERVICE_NAME, API_VERSION, credentials=credentials)
     
-    # Insert each video into the playlist
     for video_id in video_ids:
         request_body = {
             'snippet': {
@@ -259,7 +230,7 @@ def insert_videos(playlist_id):
            body=request_body
         ).execute()
 
-    return f"{len(video_ids)} videos inserted into playlist with ID {playlist_id}."
+    return f"https://www.youtube.com/playlist?list={playlist_id}"
 
 
 @app.route('/logout')
