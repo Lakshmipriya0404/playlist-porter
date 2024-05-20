@@ -17,8 +17,11 @@ app.config["SECRET_KEY"] = os.urandom(64)
 
 ###################### spotify #################################
 
-CLIENT_ID  = "1f117b3fc0d34eabbf29b976c4725b4b"
-CLIENT_SECRET = "6e673f232a3c42dcb2f6b916e341bccc"
+f = open('spotify_secret.json', 'r')
+client_data = json.load(f)
+
+CLIENT_ID  = client_data["CLIENT_ID"]
+CLIENT_SECRET = client_data["CLIENT_SECRET"]
 REDIRECT_URI = "http://localhost:5000/callback"
 
 AUTH_URL = 'https://accounts.spotify.com/authorize'
@@ -85,9 +88,8 @@ def get_playlists():
 
 @app.route("/get-playlist-tracks")
 def get_playlist_tracks():
-    # Retrieve tracks from the playlist
+
     playlist_id = request.args.get('pid')
-    # playlist_id = '2eZLIe7z4r2DkfzltYiK1n'
     token = request.args.get('token')
     headers = {
         'Authorization': f"Bearer {token}"
