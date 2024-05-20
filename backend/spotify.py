@@ -1,3 +1,4 @@
+import base64
 from datetime import datetime
 import os
 import urllib.parse
@@ -17,11 +18,13 @@ app.config["SECRET_KEY"] = os.urandom(64)
 
 ###################### spotify #################################
 
-f = open('spotify_secret.json', 'r')
-client_data = json.load(f)
+# f = open('spotify_secret.json', 'r')
+# client_data = json.load(f)
 
-CLIENT_ID  = client_data["CLIENT_ID"]
-CLIENT_SECRET = client_data["CLIENT_SECRET"]
+# CLIENT_ID  = client_data["CLIENT_ID"]
+# CLIENT_SECRET = client_data["CLIENT_SECRET"]
+CLIENT_ID = os.getenv('CLIENT_ID')
+CLIENT_SECRET = os.getenv('CLIENT_SECRET')
 REDIRECT_URI = "http://localhost:5000/callback"
 
 AUTH_URL = 'https://accounts.spotify.com/authorize'
@@ -128,6 +131,12 @@ API_SERVICE_NAME = 'youtube'
 API_VERSION = 'v3'
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  
 YOUTUBE_API_KEY = 'AIzaSyDI7r5P-LVdgdVEIuYfyNsFy_nglaNC8ZE'
+
+client_secret_base64 = os.getenv('CLIENT_SECRET_JSON_BASE64')
+client_secret_json = base64.b64decode(client_secret_base64).decode('utf-8')
+
+with open(CLIENT_SECRETS_FILE, 'w') as f:
+    f.write(client_secret_json)
 
 @app.route("/create_playlist", methods=['POST'])
 def create_playlist():
