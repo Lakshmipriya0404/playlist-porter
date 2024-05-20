@@ -16,7 +16,7 @@ const Main = () => {
       setSelectedPlaylistId(playlistId);
       const token = localStorage.getItem("spotifyAuthToken");
       const tracksResponse = await fetch(
-        `http://localhost:5000/get-playlist-tracks?token=${token}&pid=${playlistId}`
+        `https://playlist-porter.onrender.com/get-playlist-tracks?token=${token}&pid=${playlistId}`
       );
       const data = await tracksResponse.json();
       setTracksData(data);
@@ -27,7 +27,9 @@ const Main = () => {
 
   const handleSpotifyAuthClick = async () => {
     try {
-      const response = await fetch("http://localhost:5000/authorize-spotify");
+      const response = await fetch(
+        "https://playlist-porter.onrender.com/authorize-spotify"
+      );
       const data = await response.json();
       window.open(data.auth_url, "", "width=450,height=300");
       window.addEventListener("message", async (event) => {
@@ -35,7 +37,7 @@ const Main = () => {
         localStorage.setItem("spotifyAuthToken", token);
         setAuthorizedSpotify(true);
         const playlist_response = await fetch(
-          `http://localhost:5000/get-spotify-playlists?token=${token}`
+          `https://playlist-porter.onrender.com/get-spotify-playlists?token=${token}`
         );
         const playlist_data = await playlist_response.json();
         setPlaylists(playlist_data.items);
@@ -47,7 +49,9 @@ const Main = () => {
 
   const handleUTubeAuth = async () => {
     try {
-      const response = await fetch("http://localhost:5000/authorize_utube");
+      const response = await fetch(
+        "https://playlist-porter.onrender.com/authorize_utube"
+      );
       const data = await response.json();
       window.open(data.auth_url, "", "width=450,height=300");
       window.addEventListener("message", (event) => {
@@ -65,13 +69,16 @@ const Main = () => {
       setLoading(true);
       const credentialsString = localStorage.getItem("utubeCredentials");
       const credentials = JSON.parse(credentialsString);
-      const response = await fetch("http://localhost:5000/create_playlist", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ credentials, tracksData }),
-      });
+      const response = await fetch(
+        "https://playlist-porter.onrender.com/create_playlist",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ credentials, tracksData }),
+        }
+      );
       const link = await response.json();
       setYoutubePlaylistLink(link);
       setLoading(false);

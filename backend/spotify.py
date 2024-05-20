@@ -25,7 +25,7 @@ app.config["SECRET_KEY"] = os.urandom(64)
 # CLIENT_SECRET = client_data["CLIENT_SECRET"]
 CLIENT_ID = os.getenv('CLIENT_ID')
 CLIENT_SECRET = os.getenv('CLIENT_SECRET')
-REDIRECT_URI = "http://localhost:5000/callback"
+REDIRECT_URI = "https://playlist-porter.onrender.com/callback"
 
 AUTH_URL = 'https://accounts.spotify.com/authorize'
 TOKEN_URL = 'https://accounts.spotify.com/api/token'
