@@ -130,7 +130,7 @@ SCOPES = ['https://www.googleapis.com/auth/youtube','https://www.googleapis.com/
 API_SERVICE_NAME = 'youtube'
 API_VERSION = 'v3'
 os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'  
-YOUTUBE_API_KEY = 'AIzaSyDI7r5P-LVdgdVEIuYfyNsFy_nglaNC8ZE'
+YOUTUBE_API_KEY = os.getenv('YOUTUBE_API_KEY')
 
 client_secret_base64 = os.getenv('CLIENT_SECRET_JSON_BASE64')
 client_secret_json = base64.b64decode(client_secret_base64).decode('utf-8')
